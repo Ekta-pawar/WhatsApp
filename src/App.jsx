@@ -1,17 +1,43 @@
 import React, { useState, useRef, useEffect } from "react";
+import { connectWS } from "./ws";
 
 const App = () => {
+
+  const socket = useRef(null);
 
   const [userName, setUserName] = useState("");
   const [showNamePopup, setShowNamePopup] = useState(true);
   const [inputName, setInputName] = useState("");
 
-  const [messages, setMessages] = useState([]);
+ const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
 
   const chatRef = useRef(null);
 
-  // auto scroll
+useEffect(() => {
+
+  socket.current = connectWS();
+
+  socket.current.on("connect", () => {
+    console.log("Connected:", socket.current.id);
+  });
+
+  socket.current.on("roomNotice", (userName) => {
+    console.log(`${userName} joined to group!`);
+  });
+
+  socket.current.on("chatMessage", (msg) => {
+    console.log("New message:", msg);
+    setMessages((prev) => [...prev, msg]);
+  });
+
+  return () => {
+    socket.current.disconnect();
+  };
+
+}, []);
+
+  // AUTO SCROLL
   useEffect(() => {
     chatRef.current?.scrollTo(0, chatRef.current.scrollHeight);
   }, [messages]);
@@ -28,27 +54,29 @@ const App = () => {
 
     const trimmed = inputName.trim();
     if (!trimmed) return;
+      socket.current.emit("joinRoom", trimmed);
 
     setUserName(trimmed);
     setShowNamePopup(false);
   }
 
-  function sendMessage() {
+function sendMessage() {
 
-    const t = text.trim();
-    if (!t) return;
+  const t = text.trim();
+  if (!t) return;
 
-    const msg = {
-      id: Date.now(),
-      sender: userName,
-      text: t,
-      ts: Date.now()
-    };
+  const msg = {
+    id: Date.now(),
+    sender: userName,
+    text: t,
+    ts: Date.now()
+  };
 
-    setMessages(m => [...m, msg]);
-    setText("");
-  }
+  // send to server
+  socket.current.emit("chatMessage", msg);
 
+  setText("");
+}
   function handleKeyDown(e) {
 
     if (e.key === "Enter" && !e.shiftKey) {
@@ -111,7 +139,6 @@ const App = () => {
             </div>
 
             <div className="flex-1">
-
               <div className="font-medium">
                 Realtime group chat
               </div>
@@ -119,7 +146,6 @@ const App = () => {
               <div className="text-xs opacity-80">
                 Online
               </div>
-
             </div>
 
             <div className="text-sm opacity-80">
@@ -134,12 +160,11 @@ const App = () => {
             className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#ece5dd]"
           >
 
-            {messages.map(m => {
+            {messages.map((m) => {
 
               const mine = m.sender === userName;
 
               return (
-
                 <div
                   key={m.id}
                   className={`flex ${mine ? "justify-end" : "justify-start"}`}
@@ -147,9 +172,7 @@ const App = () => {
 
                   <div
                     className={`max-w-[75%] p-3 rounded-lg text-sm shadow ${
-                      mine
-                        ? "bg-[#DCF8C6]"
-                        : "bg-white"
+                      mine ? "bg-[#DCF8C6]" : "bg-white"
                     }`}
                   >
 
@@ -172,9 +195,7 @@ const App = () => {
                   </div>
 
                 </div>
-
               );
-
             })}
 
           </div>
